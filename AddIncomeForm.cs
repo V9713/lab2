@@ -11,28 +11,29 @@ namespace Lab2
         {
             InitializeComponent();
             InitializeIncomeTypeComboBox();
+            cmbIncomeType_SelectedIndexChanged(null, null);
         }
 
         private void InitializeIncomeTypeComboBox()
         {
-            cmbIncomeType.Items.AddRange(new object[] { "Зарплата", "Дивиденды", "Аренда" });
+            cmbIncomeType.Items.AddRange(new object[] { "Salary", "Dividend", "Rent" });
             cmbIncomeType.SelectedIndex = 0;
         }
 
         private void cmbIncomeType_SelectedIndexChanged(object sender, EventArgs e)
         {
-            panelSalary.Visible = cmbIncomeType.SelectedIndex == 0;
-            panelDividend.Visible = cmbIncomeType.SelectedIndex == 1;
-            panelRent.Visible = cmbIncomeType.SelectedIndex == 2;
+            panelSalary.Visible = cmbIncomeType.SelectedItem.ToString() == "Salary";
+            panelDividend.Visible = cmbIncomeType.SelectedItem.ToString() == "Dividend";
+            panelRent.Visible = cmbIncomeType.SelectedItem.ToString() == "Rent";
         }
 
         private void btnSave_Click(object sender, EventArgs e)
         {
             try
             {
-                switch (cmbIncomeType.SelectedIndex)
+                switch (cmbIncomeType.SelectedItem.ToString())
                 {
-                    case 0: // Salary
+                    case "Salary":
                         NewIncome = new Salary
                         {
                             Date = dtpSalaryDate.Value,
@@ -40,7 +41,7 @@ namespace Lab2
                         };
                         break;
 
-                    case 1: // Dividend
+                    case "Dividend":
                         NewIncome = new Dividend
                         {
                             Date = dtpDividendDate.Value,
@@ -49,7 +50,7 @@ namespace Lab2
                         };
                         break;
 
-                    case 2: // Rent
+                    case "Rent":
                         NewIncome = new Rent
                         {
                             Address = txtAddress.Text,

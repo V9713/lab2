@@ -7,117 +7,177 @@ namespace Lab2
 {
     public partial class MainForm : Form
     {
-        private const string FilePath = "incomes.txt";
-        private List<Income> _incomes;
+        private const string DataFile = "incomes.txt";
+        private List<Income> incomes = new List<Income>();
 
         public MainForm()
         {
             InitializeComponent();
             InitializeDataGridView();
-            LoadIncomes();
+            LoadData();
         }
 
         private void InitializeDataGridView()
         {
             dataGridView.AutoGenerateColumns = false;
+            dataGridView.Columns.Clear();
             dataGridView.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
 
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
-                HeaderText = "Тип",
                 DataPropertyName = "Type",
+                HeaderText = "Тип",
                 Width = 100
             });
 
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
-                HeaderText = "Дата",
                 DataPropertyName = "Date",
+                HeaderText = "Дата",
                 Width = 100
             });
 
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
-                HeaderText = "Детали",
                 DataPropertyName = "Details",
+                HeaderText = "Детали",
                 Width = 200
             });
 
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
-                HeaderText = "Сумма",
                 DataPropertyName = "Sum",
+                HeaderText = "Сумма",
                 Width = 80
             });
         }
 
-        private void LoadIncomes()
+        private void LoadData()
         {
             try
             {
-                if (!File.Exists(FilePath))
+                incomes = FileManager.ReadIncomesFromFile(DataFile);
+
+                var displayList = new List<IncomeDisplay>();
+                foreach (var income in incomes)
                 {
-                    File.Create(FilePath).Close();
+                    displayList.Add(new IncomeDisplay(income));
                 }
 
-                _incomes = FileManager.ReadIncomesFromFile(FilePath);
-                RefreshDataGridView();
+                dataGridView.DataSource = null;
+                dataGridView.DataSource = displayList;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка при загрузке данных: {ex.Message}", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Ошибка загрузки: {ex.Message}", "Ошибка",
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void RefreshDataGridView()
+        private void SaveData()
         {
-            var displayList = new List<IncomeDisplay>();
-
-            foreach (var income in _incomes)
+            try
             {
-                displayList.Add(new IncomeDisplay(income));
+                FileManager.SaveIncomesToFile(DataFile, incomes);
             }
-
-            dataGridView.DataSource = null;
-            dataGridView.DataSource = displayList;
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка сохранения: {ex.Message}", "Ошибка",
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
         {
             using (var addForm = new AddIncomeForm())
             {
-                if (addForm.ShowDialog() == DialogResult.OK)
+                if (addForm.ShowDialog() == DialogResult.OK && addForm.NewIncome != null)
                 {
-                    _incomes.Add(addForm.NewIncome);
-                    FileManager.SaveIncomesToFile(FilePath, _incomes);
-                    RefreshDataGridView();
+                    incomes.Add(addForm.NewIncome);
+                    SaveData();
+                    LoadData(); // Обновляем данные
                 }
             }
         }
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
-            if (dataGridView.SelectedRows.Count == 0)
+            if (dataGridView.SelectedRows.Count > 0)
             {
-                MessageBox.Show("Пожалуйста, выберите запись для удаления", "Информация",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
+                int selectedIndex = dataGridView.SelectedRows[0].Index;
+                if (selectedIndex >= 0 && selectedIndex < incomes.Count)
+                {
+                    incomes.RemoveAt(selectedIndex);
+                    SaveData();
+                    LoadData(); // Обновляем данные
+                }
             }
-
-            var selectedIndex = dataGridView.SelectedRows[0].Index;
-            _incomes.RemoveAt(selectedIndex);
-            FileManager.SaveIncomesToFile(FilePath, _incomes);
-            RefreshDataGridView();
         }
+
+        private void btnOpenCommands_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Filter = "Текстовые файлы (*.txt)|*.txt|Все файлы (*.*)|*.*";
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    ExecuteCommands(openFileDialog.FileName);
+                    SaveData();
+                    LoadData(); // Обновляем данные
+                }
+            }
+        }
+        
+
+        private void ExecuteCommands(string commandFile)
+        {
+            try
+            {
+                string[] commands = File.ReadAllLines(commandFile);
+                foreach (string cmd in commands)
+                {
+                    if (string.IsNullOrWhiteSpace(cmd)) continue;
+
+                    string[] parts = cmd.Split(new[] { ' ' }, 2);
+                    if (parts.Length != 2) continue;
+
+                    string command = parts[0].ToUpper();
+                    string args = parts[1].Trim();
+
+                    switch (command)
+                    {
+                        case "ADD":
+                            Income newIncome = FileManager.CreateIncomeFromString(args);
+                            if (newIncome != null)
+                                incomes.Add(newIncome);
+                            break;
+
+                        case "REM":
+                            incomes.RemoveAll(i => i.MatchesCondition(args));
+                            break;
+
+                        case "SAVE":
+                            FileManager.SaveIncomesToFile(args, incomes);
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка выполнения команд: {ex.Message}", "Ошибка",
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        
     }
 
     public class IncomeDisplay
     {
-        public string Type { get; }
-        public string Date { get; }
-        public string Details { get; }
-        public int Sum { get; }
+        public string Type { get; set; }
+        public string Date { get; set; }
+        public string Details { get; set; }
+        public int Sum { get; set; }
 
         public IncomeDisplay(Income income)
         {
@@ -127,19 +187,19 @@ namespace Lab2
             {
                 case Salary salary:
                     Type = "Зарплата";
-                    Date = salary.Date.ToString("yyyy-MM-dd");
-                    Details = string.Empty;
+                    Date = salary.Date.ToString("dd.MM.yyyy");
+                    Details = "";
                     break;
 
                 case Dividend dividend:
                     Type = "Дивиденды";
-                    Date = dividend.Date.ToString("yyyy-MM-dd");
+                    Date = dividend.Date.ToString("dd.MM.yyyy");
                     Details = $"Счет: {dividend.AccountNumber}";
                     break;
 
                 case Rent rent:
                     Type = "Аренда";
-                    Date = string.Empty;
+                    Date = "";
                     Details = $"{rent.Address}, {rent.ObjectType}, {rent.Name}";
                     break;
             }
